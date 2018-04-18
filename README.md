@@ -39,9 +39,9 @@
 
 ## 1-3. Complete the following tasks:
 
-- [car-register](car-register/car-register.c)
+- [car-register](car-register/car_register.c)
 - [algorithm](algorithm/algorithm.c)
-- [crossing](crossing/crossing.md)
+- [level-crossing](level-crossing/level-crossing.c)
 
 ## Acceptance criteria
 
