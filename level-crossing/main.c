@@ -152,7 +152,7 @@ int main(void) {
 
 	HAL_TIM_Base_Init(&TimHandle);
 	HAL_TIM_Base_Start_IT(&TimHandle);
-	printf("asd\n");
+	printf("Entered in OPEN state\n");
 
 	while (1) {
 	}
@@ -160,11 +160,14 @@ int main(void) {
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *TimHandle){
 	if (counter == 0 || counter == 1 || counter == 3 || counter == 4)
 	BSP_LED_Toggle(LED_GREEN);
-	if (counter == 1 || counter == 3)
+	if (counter == 1 || counter == 3){
 		time++;
+		printf("%d\n", time);
+	}
 	if (time == 10 && counter == 1){
 		BSP_LED_Off(LED_GREEN);
 		HAL_TIM_Base_Stop_IT(TimHandle);
+		printf("Entered in SECURED state\n");
 	}
 	if (time == 12 && counter == 3){
 		prescaler54();
@@ -176,6 +179,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *TimHandle){
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	counter ++;
 	if (counter == 1){
+		printf("Entered in SECURING state\n");
 		BSP_LED_Toggle(LED_GREEN);
 		TimHandle.Init.Prescaler   = 27000;
 		HAL_TIM_Base_Init(&TimHandle);
@@ -183,6 +187,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	}
 	if (counter == 2){
 		HAL_TIM_Base_Start_IT(&TimHandle);
+		printf("Entered in OPENING state\n");
 		counter = 3;
 		time = 0;
 	}
@@ -192,6 +197,7 @@ void prescaler54(void){
 	TimHandle.Init.Prescaler   = 54000;
 	HAL_TIM_Base_Init(&TimHandle);
 	HAL_TIM_Base_Start_IT(&TimHandle);
+	printf("Entered in OPEN state\n");
 }
 /**
  * @brief  Retargets the C library printf function to the USART.
