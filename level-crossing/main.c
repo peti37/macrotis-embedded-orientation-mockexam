@@ -50,6 +50,12 @@
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+enum {
+	OPEN,
+	SECURING,
+	SECURED,
+	OPENING
+}state;
 
 UART_HandleTypeDef uart_handle;
 GPIO_InitTypeDef gpio1;
@@ -59,6 +65,7 @@ TIM_HandleTypeDef Timer2;
 TIM_OC_InitTypeDef sConfig;
 int counter = 0;
 int time = 0;
+int timer_ = 5;
 
 /* Private function prototypes -----------------------------------------------*/
 
@@ -74,33 +81,92 @@ static void SystemClock_Config(void);
 static void Error_Handler(void);
 static void MPU_Config(void);
 static void CPU_CACHE_Enable(void);
-void prescaler54(void);
-/* Private functions ---------------------------------------------------------*/
+void _OPEN(void);
+void _SECURING(void);
+void _SECURED(void);
+void _OPENING(void);
+void start_periphs(void);
+void timer(int);
 
-/**
- * @brief  Main program
- * @param  None
- * @retval None
- */
 int main(void) {
-	/* This project template calls firstly two functions in order to configure MPU feature
-	 and to enable the CPU Cache, respectively MPU_Config() and CPU_CACHE_Enable().
-	 These functions are provided as template implementation that User may integrate
-	 in his application, to enhance the performance in case of use of AXI interface
-	 with several masters. */
-
-	/* Configure the MPU attributes as Write Through */
 	MPU_Config();
-
-	/* Enable the CPU Cache */
 	CPU_CACHE_Enable();
+	start_periphs();
+	printf("Entered in OPEN state\n");
+	state = OPEN;
+	while (1) {
+	}
+}
 
-	/* STM32F7xx HAL library initialization:
-	 - Configure the Flash ART accelerator on ITCM interface
-	 - Configure the Systick to generate an interrupt each 1 msec
-	 - Set NVIC Group Priority to 4
-	 - Low Level Initialization
-	 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *TimHandle){
+	if (state == OPEN || state == SECURING || state == OPENING)
+		BSP_LED_Toggle(LED_GREEN);
+	if (state == SECURING || state == OPENING){
+		time++;
+		timer(time);
+		//printf("%d\n", time);
+	}
+	if (time == 10 && state == SECURING){
+		_SECURED();
+	}
+	if (time == 12 && state == OPENING){
+		_OPEN();
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if (state == OPEN && time == 0){
+		_SECURING();
+	}
+	if (state == SECURED && time == 0){
+		_OPENING();
+	}
+}
+
+void _OPEN(void){
+	TimHandle.Init.Prescaler   = 54000;
+	HAL_TIM_Base_Init(&TimHandle);
+	HAL_TIM_Base_Start_IT(&TimHandle);
+	printf("Entered in OPEN state\n");
+	state = OPEN;
+	time = 0;
+}
+
+void _SECURING(void){
+	timer_ = 6;
+	printf("Entered in SECURING state\n");
+	BSP_LED_Toggle(LED_GREEN);
+	TimHandle.Init.Prescaler   = 27000;
+	HAL_TIM_Base_Init(&TimHandle);
+	HAL_TIM_Base_Start_IT(&TimHandle);
+	state = SECURING;
+}
+
+void _SECURED(void){
+	BSP_LED_Off(LED_GREEN);
+	HAL_TIM_Base_Stop_IT(&TimHandle);
+	printf("Entered in SECURED state\n");
+	state = SECURED;
+	time = 0;
+}
+
+void _OPENING(void){
+	timer_ = 7;
+	HAL_TIM_Base_Start_IT(&TimHandle);
+	state = OPENING;
+	printf("Entered in OPENING state\n");
+	time = 0;
+}
+
+void timer(int time){
+	if (time % 2 == 0){
+		timer_--;
+		printf("%d sec left\n", timer_);
+	}
+
+}
+
+void start_periphs(void){
 	HAL_Init();
 
 	__HAL_RCC_GPIOA_CLK_ENABLE();
@@ -108,7 +174,6 @@ int main(void) {
 	__HAL_RCC_TIM2_CLK_ENABLE();
 	__HAL_RCC_TIM3_CLK_ENABLE();
 	__HAL_RCC_USART1_CLK_ENABLE();
-	/* Configure the System clock to have a frequency of 216 MHz */
 	SystemClock_Config();
 
 	conf.Pin = GPIO_PIN_11;
@@ -125,9 +190,6 @@ int main(void) {
 	HAL_GPIO_Init(GPIOA, &gpio1);
 
 	BSP_PB_Init(BUTTON_WAKEUP, BUTTON_MODE_EXTI);
-
-	/* Add your application code here
-	 */
 	BSP_LED_Init(LED_GREEN);
 
 	uart_handle.Init.BaudRate = 115200;
@@ -141,63 +203,17 @@ int main(void) {
 
   	TimHandle.Instance = TIM2;
 	TimHandle.Init.Prescaler         = 54000;
-	TimHandle.Init.Period            = 500;
+	TimHandle.Init.Period            = 1000;
 	TimHandle.Init.ClockDivision     = 0;
 	TimHandle.Init.CounterMode       = TIM_COUNTERMODE_UP;
 	TimHandle.Init.RepetitionCounter = 0;
 	TimHandle.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
 	HAL_NVIC_SetPriority(TIM2_IRQn, 0x0F, 0x00);
-	/* tell the interrupt handling unit to process our interrupts */
 	HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
 	HAL_TIM_Base_Init(&TimHandle);
 	HAL_TIM_Base_Start_IT(&TimHandle);
-	printf("Entered in OPEN state\n");
 
-	while (1) {
-	}
-}
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *TimHandle){
-	if (counter == 0 || counter == 1 || counter == 3 || counter == 4)
-	BSP_LED_Toggle(LED_GREEN);
-	if (counter == 1 || counter == 3){
-		time++;
-		printf("%d\n", time);
-	}
-	if (time == 10 && counter == 1){
-		BSP_LED_Off(LED_GREEN);
-		HAL_TIM_Base_Stop_IT(TimHandle);
-		printf("Entered in SECURED state\n");
-	}
-	if (time == 12 && counter == 3){
-		prescaler54();
-		counter = 0;
-		time = 0;
-	}
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	counter ++;
-	if (counter == 1){
-		printf("Entered in SECURING state\n");
-		BSP_LED_Toggle(LED_GREEN);
-		TimHandle.Init.Prescaler   = 27000;
-		HAL_TIM_Base_Init(&TimHandle);
-		HAL_TIM_Base_Start_IT(&TimHandle);
-	}
-	if (counter == 2){
-		HAL_TIM_Base_Start_IT(&TimHandle);
-		printf("Entered in OPENING state\n");
-		counter = 3;
-		time = 0;
-	}
-}
-
-void prescaler54(void){
-	TimHandle.Init.Prescaler   = 54000;
-	HAL_TIM_Base_Init(&TimHandle);
-	HAL_TIM_Base_Start_IT(&TimHandle);
-	printf("Entered in OPEN state\n");
 }
 /**
  * @brief  Retargets the C library printf function to the USART.
@@ -261,7 +277,7 @@ static void SystemClock_Config(void) {
 			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
 	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV16;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV8;
 	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV8;
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK) {
 		Error_Handler();
